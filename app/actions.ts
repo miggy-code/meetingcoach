@@ -9,6 +9,7 @@ import {
   setPostMortemStatus,
   setRelatedProject,
   updateFollowupEmail,
+  updateTranscript,
 } from "@/lib/mutations";
 import { analyzeTranscript, regenerateFollowupEmail } from "@/lib/deepseek";
 import type { NextStepItem } from "@/lib/types";
@@ -125,4 +126,23 @@ export async function setRelatedProjectAction(
   await setRelatedProject(meetingId, projectId);
   revalidatePath("/");
   return { ok: true };
+}
+
+// ─── Update Transcript ──
+
+export async function updateTranscriptAction(
+  meetingId: string,
+  transcript: string,
+) {
+  try {
+    await updateTranscript(meetingId, transcript);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateTranscriptAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update transcript.",
+    };
+  }
 }

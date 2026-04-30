@@ -106,3 +106,11 @@ export async function setRelatedProject(meetingId: string, projectId: string | n
     "Related Project": projectId ? [projectId] : [],
   });
 }
+
+// ─── Update transcript ──
+
+export async function updateTranscript(meetingId: string, transcript: string) {
+  return updateRecord(tables.meetingNotes(), meetingId, {
+    Transcript: transcript,
+  });
+}
