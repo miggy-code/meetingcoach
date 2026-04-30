@@ -2,26 +2,31 @@ import { cn } from "@/lib/utils";
 import type { DashboardData } from "@/lib/types";
 
 export function HeroStats({ stats }: { stats: DashboardData["weekStats"] }) {
-  const cards = [
+  const cards: {
+    label: string;
+    value: string | number;
+    tone: "neutral" | "success" | "warn";
+    sublabel?: string;
+  }[] = [
     {
       label: "Meetings this week",
       value: stats.meetingsThisWeek,
-      tone: "neutral" as const,
+      tone: "neutral",
     },
     {
       label: "Analyzed",
       value: stats.analyzed,
-      tone: stats.analyzed > 0 ? "success" : ("neutral" as const),
+      tone: stats.analyzed > 0 ? "success" : "neutral",
     },
     {
       label: "Pending",
       value: stats.pending,
-      tone: stats.pending > 0 ? "warn" : ("neutral" as const),
+      tone: stats.pending > 0 ? "warn" : "neutral",
     },
     {
       label: "Avg score",
       value: stats.avgScore == null ? "—" : stats.avgScore.toFixed(1),
-      tone: "neutral" as const,
+      tone: "neutral",
       sublabel: "this week",
     },
   ];
