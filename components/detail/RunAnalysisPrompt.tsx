@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Upload } from "lucide-react";
+import { Sparkles, Upload, Tag } from "lucide-react";
 import type { MeetingNote } from "@/lib/types";
-import { updateTranscriptAction } from "@/app/actions";
+import { CATEGORIES, type Category } from "@/lib/constants";
+import { updateTranscriptAction, updateCategoryAction } from "@/app/actions";
 
 export function RunAnalysisPrompt({
   meeting,
@@ -15,6 +16,8 @@ export function RunAnalysisPrompt({
   const [busy, setBusy] = useState(false);
   const [savingTranscript, setSavingTranscript] = useState(false);
   const [transcriptInput, setTranscriptInput] = useState("");
+  const [savingCategory, setSavingCategory] = useState(false);
+  const [categoryInput, setCategoryInput] = useState<Category | "">("");
   const [error, setError] = useState<string | null>(null);
 
   const missingTranscript = !meeting.transcript;
@@ -61,6 +64,24 @@ export function RunAnalysisPrompt({
     }
   }
 
+  async function saveCategory() {
+    if (!categoryInput) return;
+    setSavingCategory(true);
+    setError(null);
+    try {
+      const res = await updateCategoryAction(meeting.id, categoryInput as Category);
+      if (!res.ok) {
+        setError(res.error ?? "Failed to save category.");
+        return;
+      }
+      onRefresh();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Network error.");
+    } finally {
+      setSavingCategory(false);
+    }
+  }
+
   return (
     <div className="mb-4 rounded-xl border bg-surface p-6">
       <div className="flex items-start gap-3">
@@ -103,6 +124,30 @@ export function RunAnalysisPrompt({
                   {savingTranscript ? "Saving…" : "Save transcript"}
                 </button>
               </div>
+            </div>
+          )}
+
+          {missingCategory && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg border bg-surface-2 p-3">
+              <select
+                value={categoryInput}
+                onChange={(e) => setCategoryInput(e.target.value as Category)}
+                className="flex-1 rounded border bg-surface px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-accent/50"
+              >
+                <option value="" disabled>Select a category...</option>
+                {CATEGORIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+              <button
+                type="button"
+                onClick={saveCategory}
+                disabled={savingCategory || !categoryInput}
+                className="inline-flex items-center gap-1.5 rounded-md bg-accent px-3 py-1.5 text-xs font-medium text-accent-fg hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Tag className="h-3.5 w-3.5" />
+                {savingCategory ? "Saving…" : "Save category"}
+              </button>
             </div>
           )}
 

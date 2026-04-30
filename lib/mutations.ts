@@ -12,7 +12,7 @@ import type {
   MeetingNote,
   NextStepItem,
 } from "./types";
-import type { GoalStatus, Priority, Confidence } from "./constants";
+import type { Category, GoalStatus, Priority, Confidence } from "./constants";
 
 // ─── Apply AI analysis result to a meeting ──
 
@@ -112,5 +112,25 @@ export async function setRelatedProject(meetingId: string, projectId: string | n
 export async function updateTranscript(meetingId: string, transcript: string) {
   return updateRecord(tables.meetingNotes(), meetingId, {
     Transcript: transcript,
+  });
+}
+
+// ─── Create meeting ──
+
+export async function createMeeting(name: string, category: Category, transcript: string, date: string) {
+  return createRecord(tables.meetingNotes(), {
+    Name: name,
+    Category: category,
+    Transcript: transcript,
+    Date: date,
+    "Post-Mortem Status": "Not Analyzed",
+  });
+}
+
+// ─── Update category ──
+
+export async function updateCategory(meetingId: string, category: Category) {
+  return updateRecord(tables.meetingNotes(), meetingId, {
+    Category: category,
   });
 }

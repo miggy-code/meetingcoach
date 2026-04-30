@@ -10,10 +10,12 @@ import {
   setRelatedProject,
   updateFollowupEmail,
   updateTranscript,
+  createMeeting,
+  updateCategory,
 } from "@/lib/mutations";
 import { analyzeTranscript, regenerateFollowupEmail } from "@/lib/deepseek";
 import type { NextStepItem } from "@/lib/types";
-import type { GoalStatus, Priority } from "@/lib/constants";
+import type { Category, GoalStatus, Priority } from "@/lib/constants";
 
 // ─── Run Analysis ──
 
@@ -143,6 +145,43 @@ export async function updateTranscriptAction(
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to update transcript.",
+    };
+  }
+}
+
+// ─── Create Meeting ──
+
+export async function createMeetingAction(args: {
+  name: string;
+  category: Category;
+  transcript: string;
+  date: string;
+}) {
+  try {
+    const record = await createMeeting(args.name, args.category, args.transcript, args.date);
+    revalidatePath("/");
+    return { ok: true, id: record.id };
+  } catch (e) {
+    console.error("createMeetingAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to create meeting.",
+    };
+  }
+}
+
+// ─── Update Category ──
+
+export async function updateCategoryAction(meetingId: string, category: Category) {
+  try {
+    await updateCategory(meetingId, category);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateCategoryAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update category.",
     };
   }
 }
