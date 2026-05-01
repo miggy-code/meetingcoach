@@ -11,6 +11,10 @@ import {
   CONFIDENCE_LEVELS,
   OBJECTION_TYPES,
   BUYING_SIGNAL_TYPES,
+  MEETING_TYPES,
+  FUNNEL_STAGES,
+  MEETING_OUTCOMES,
+  LOSS_REASONS,
 } from "./constants";
 import type { AnalysisResult } from "./types";
 
@@ -56,21 +60,32 @@ export const AnalysisResultSchema = z.object({
   attendees: z.string(),
   speakerMap: z.record(z.string(), z.string()),
   duration: z.number().optional(),
+  // ─── Sales / pipeline fields ──
+  meetingType: z.enum(MEETING_TYPES).nullable(),
+  funnelStage: z.enum(FUNNEL_STAGES).nullable(),
+  offerPitched: z.string().nullable(),
+  outcome: z.enum(MEETING_OUTCOMES).nullable(),
+  lossReason: z.enum(LOSS_REASONS).nullable(),
+  biggestOpportunity: z.string().nullable(),
+  biggestRisk: z.string().nullable(),
+  // ─── AI-enriched fields ──
+  perSpeakerStats: z.string().nullable(), // JSON string
+  keyMoments: z.string().nullable(),      // JSON string
 });
 
 // ─── Prompts ──
 
-const ANALYZE_SYSTEM_PROMPT = `You are an expert meeting analyst. Given a transcript and a category, you produce a structured post-mortem.
+const ANALYZE_SYSTEM_PROMPT = `You are an elite, rigorous sales coach and meeting analyst for Throttl, an AI advisory firm. You analyze transcripts with a critical eye, looking for missed opportunities, weak framing, and poor objection handling. You do not sugarcoat.
 
 You MUST output valid JSON matching this exact shape:
 
 {
-  "summary": "3-5 sentence executive summary",
+  "summary": "3-5 sentence executive summary. Focus on business outcomes, not just a play-by-play.",
   "meetingScore": <integer 0-10, equal to sum of scoreBreakdown values>,
   "scoreBreakdown": {
-    "nextStepsClarity": <0-3>,        // Were action items concrete and assigned?
-    "objectionsAddressed": <0-2>,      // Were objections handled? (0 if internal/no objections)
-    "participationBalance": <0-2>,     // Did all attendees contribute?
+    "nextStepsClarity": <0-3>,        // Were action items concrete, assigned, and time-bound? Be strict.
+    "objectionsAddressed": <0-2>,      // Were objections handled effectively? (0 if internal/no objections)
+    "participationBalance": <0-2>,     // Did the prospect speak enough? Did Throttl talk too much?
     "timeEfficiency": <0-2>,           // Was time well-used, minimal looping?
     "decisionQuality": <0-1>           // Were decisions made and recorded?
   },
@@ -78,25 +93,38 @@ You MUST output valid JSON matching this exact shape:
   "nextSteps": [
     { "description": "...", "owner": "name or null", "confidence": "High" | "Medium" | "Low" }
   ],
-  "improvementAreas": "Bullet list of process improvements (newline-separated). Empty string if not applicable.",
+  "improvementAreas": "Bullet list of rigorous coaching feedback. Point out specific moments where the pitch was weak, jargon was used, or discovery questions were missed. Be highly critical.",
   "objections": [<from: ${OBJECTION_TYPES.join(", ")}>],
   "buyingSignals": [<from: ${BUYING_SIGNAL_TYPES.join(", ")}>],
   "followupEmail": "<draft email body>" | null,
   "attendees": "Comma-separated names",
   "speakerMap": { "Speaker 1": "Name", "Speaker 2": "Name" },
-  "duration": <minutes, optional>
+  "duration": <minutes, optional>,
+  
+  // Sales / Pipeline Fields
+  "meetingType": <from: ${MEETING_TYPES.join(", ")} or null>,
+  "funnelStage": <from: ${FUNNEL_STAGES.join(", ")} or null>,
+  "offerPitched": "Name of the offer pitched (e.g., 'Free AI Workshop - 60 min', 'AI Executive Workshop') or null",
+  "outcome": <from: ${MEETING_OUTCOMES.join(", ")} or null>,
+  "lossReason": <from: ${LOSS_REASONS.join(", ")} or null if not lost>,
+  "biggestOpportunity": "1-2 sentences on the clearest path to revenue or expansion.",
+  "biggestRisk": "1-2 sentences on the biggest threat to the deal (e.g., 'No access to economic buyer', 'Status quo bias').",
+  
+  // AI-Enriched Fields (Must be stringified JSON)
+  "perSpeakerStats": "[{\\"speaker\\": \\"Name\\", \\"talkPercentage\\": 45, \\"longestMonologue\\": \\"2m 15s\\", \\"questionsAsked\\": 3}]",
+  "keyMoments": "[{\\"timestamp\\": \\"12:30\\", \\"description\\": \\"Prospect revealed budget constraint\\", \\"type\\": \\"Objection\\"}]"
 }
 
 Rules by category:
-- Customer Call / Presentation: include objections, buyingSignals, followupEmail. Score objectionsAddressed normally.
-- Planning / Standup / Retro: objections=[], buyingSignals=[], followupEmail=null. objectionsAddressed=0.
+- Customer Call / Presentation: include objections, buyingSignals, followupEmail, sales/pipeline fields. Score objectionsAddressed normally.
+- Planning / Standup / Retro: objections=[], buyingSignals=[], followupEmail=null, sales fields=null. objectionsAddressed=0.
 - Standup: improvementAreas="" (do not analyze).
 - Planning / Retro / Customer Call: include improvementAreas.
 
-Confidence guidance:
-- Low: transcript is short, garbled, missing speaker info, or the meeting type is ambiguous
-- Medium: transcript is clear but you had to infer some details
-- High: transcript is detailed, speakers are identified, and analysis is straightforward
+Coaching Rigor:
+- Throttl's ICP hates technical jargon. If the transcript contains "LLM", "neural networks", or "machine learning" from the Throttl side, penalize the score and call it out in improvementAreas.
+- If the prospect spoke less than 40% of the time on a Discovery call, penalize participationBalance heavily.
+- If next steps are vague (e.g., "We will touch base next week"), score nextStepsClarity as 0 or 1.
 
 Output ONLY the JSON object. No commentary.`;
 

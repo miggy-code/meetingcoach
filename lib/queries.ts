@@ -10,6 +10,7 @@ import {
   type MeetingNote,
   type Goal,
   type Project,
+  type Offer,
   type DashboardData,
   type NextStepItem,
   type ScoreBreakdown,
@@ -31,6 +32,8 @@ import {
   type FunnelStage,
   type MeetingOutcome,
   type LossReason,
+  type OfferType,
+  type OfferStatus,
   OBJECTION_TYPES,
   BUYING_SIGNAL_TYPES,
 } from "./constants";
@@ -60,6 +63,7 @@ interface MeetingNotesFields {
   "Human Corrections"?: string;
   "Related Goals"?: string[];
   "Related Project"?: string[];
+  "Related Offer"?: string[];
   Assignee?: AirtableCollaborator;
   Status?: string;
   Attachments?: AirtableAttachment[];
@@ -85,6 +89,18 @@ interface GoalFields {
   Confidence?: Confidence;
   Notes?: string;
   "Due Date"?: string;
+}
+
+interface OfferFields {
+  "Offer Name"?: string;
+  Type?: OfferType;
+  Status?: OfferStatus;
+  Company?: string;
+  "Date Presented"?: string;
+  Owner?: AirtableCollaborator;
+  Notes?: string;
+  "Loss Reason"?: LossReason;
+  "Meeting Notes"?: string[]; // inverse link from Offers → Meeting Notes
 }
 
 interface ProjectFields {
@@ -123,6 +139,7 @@ function normalizeMeeting(r: AirtableRecord<MeetingNotesFields>): MeetingNote {
     humanCorrections: tryParseJSON<HumanCorrection[]>(f["Human Corrections"], []),
     relatedGoalIds: f["Related Goals"] ?? [],
     relatedProjectIds: f["Related Project"] ?? [],
+    relatedOfferIds: f["Related Offer"] ?? [],
     assignee: f.Assignee ?? null,
     status: f.Status ?? null,
     attachments: f.Attachments ?? [],
@@ -152,6 +169,22 @@ function normalizeGoal(r: AirtableRecord<GoalFields>): Goal {
     confidence: f.Confidence ?? null,
     notes: f.Notes ?? null,
     dueDate: f["Due Date"] ?? null,
+  };
+}
+
+function normalizeOffer(r: AirtableRecord<OfferFields>): Offer {
+  const f = r.fields;
+  return {
+    id: r.id,
+    offerName: f["Offer Name"] ?? "(untitled)",
+    type: f.Type ?? null,
+    status: f.Status ?? null,
+    company: f.Company ?? null,
+    datePresented: f["Date Presented"] ?? null,
+    owner: f.Owner ?? null,
+    notes: f.Notes ?? null,
+    lossReason: f["Loss Reason"] ?? null,
+    relatedMeetingIds: f["Meeting Notes"] ?? [],
   };
 }
 
@@ -193,6 +226,29 @@ export async function fetchGoalsByIds(ids: string[]): Promise<Goal[]> {
     filterByFormula: formula,
   });
   return records.map(normalizeGoal);
+}
+
+export async function fetchAllGoals(): Promise<Goal[]> {
+  const records = await listRecords<GoalFields>(tables.goalsTracker(), {
+    sort: [{ field: "Due Date", direction: "asc" }],
+  });
+  return records.map(normalizeGoal);
+}
+
+export async function fetchOffersByIds(ids: string[]): Promise<Offer[]> {
+  if (ids.length === 0) return [];
+  const formula = `OR(${ids.map((id) => `RECORD_ID()='${id}'`).join(",")})`;
+  const records = await listRecords<OfferFields>(tables.offers(), {
+    filterByFormula: formula,
+  });
+  return records.map(normalizeOffer);
+}
+
+export async function fetchAllOffers(): Promise<Offer[]> {
+  const records = await listRecords<OfferFields>(tables.offers(), {
+    sort: [{ field: "Date Presented", direction: "desc" }],
+  });
+  return records.map(normalizeOffer);
 }
 
 export async function fetchProjectsByIds(ids: string[]): Promise<Project[]> {

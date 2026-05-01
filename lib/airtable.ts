@@ -38,6 +38,7 @@ export const tables = {
   meetingNotes: () => env("AIRTABLE_TABLE_MEETING_NOTES"),
   goalsTracker: () => env("AIRTABLE_TABLE_GOALS_TRACKER"),
   projects: () => env("AIRTABLE_TABLE_PROJECTS"),
+  offers: () => env("AIRTABLE_TABLE_OFFERS"),
 };
 
 // ─── Airtable types ──

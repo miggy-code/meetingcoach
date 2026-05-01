@@ -17,6 +17,8 @@ import type {
   FunnelStage,
   MeetingOutcome,
   LossReason,
+  OfferType,
+  OfferStatus,
 } from "./constants";
 
 // ─── Airtable raw shapes (after our normalization layer) ──
@@ -89,6 +91,7 @@ export interface MeetingNote {
   humanCorrections: HumanCorrection[];
   relatedGoalIds: string[];
   relatedProjectIds: string[];
+  relatedOfferIds: string[];
   assignee: AirtableCollaborator | null;
   status: string | null; // existing Todo/In progress/Done
   attachments: AirtableAttachment[];
@@ -146,6 +149,17 @@ export interface AnalysisResult {
   attendees: string;
   speakerMap: SpeakerMap;
   duration?: number; // estimated from transcript if not set
+  // ─── Sales / pipeline fields ──
+  meetingType: MeetingType | null;
+  funnelStage: FunnelStage | null;
+  offerPitched: string | null;
+  outcome: MeetingOutcome | null;
+  lossReason: LossReason | null;
+  biggestOpportunity: string | null;
+  biggestRisk: string | null;
+  // ─── AI-enriched fields (JSON strings) ──
+  perSpeakerStats: string | null;
+  keyMoments: string | null;
 }
 
 // ─── Dashboard data (aggregated for the page) ──
@@ -164,6 +178,38 @@ export interface DashboardData {
     buyingSignals: Record<BuyingSignalType, number>;
   };
   reviewQueueCount: number;
+}
+
+// ─── Offer record ──
+
+export interface Offer {
+  id: string;
+  offerName: string;
+  type: OfferType | null;
+  status: OfferStatus | null;
+  company: string | null;
+  datePresented: string | null; // YYYY-MM-DD
+  owner: AirtableCollaborator | null;
+  notes: string | null;
+  lossReason: LossReason | null;
+  relatedMeetingIds: string[];
+}
+
+// ─── Per-speaker stats (parsed from JSON string) ──
+
+export interface SpeakerStat {
+  speaker: string;
+  talkPercentage: number;
+  longestMonologue: string; // e.g. "2m 15s"
+  questionsAsked: number;
+}
+
+// ─── Key moment (parsed from JSON string) ──
+
+export interface KeyMoment {
+  timestamp: string; // e.g. "12:30"
+  description: string;
+  type: "Objection" | "Buying Signal" | "Decision" | "Risk" | "Opportunity" | "Other";
 }
 
 // ─── Score component utility ──

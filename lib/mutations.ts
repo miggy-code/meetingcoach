@@ -135,3 +135,65 @@ export async function updateCategory(meetingId: string, category: Category) {
     Category: category,
   });
 }
+
+// ─── Apply AI-generated sales/pipeline fields ──
+
+export async function applyPipelineFields(
+  meetingId: string,
+  fields: {
+    meetingType?: string | null;
+    funnelStage?: string | null;
+    offerPitched?: string | null;
+    outcome?: string | null;
+    lossReason?: string | null;
+    biggestOpportunity?: string | null;
+    biggestRisk?: string | null;
+    perSpeakerStats?: string | null;
+    keyMoments?: string | null;
+  },
+) {
+  const update: Record<string, unknown> = {};
+  if (fields.meetingType !== undefined) update["Meeting Type"] = fields.meetingType;
+  if (fields.funnelStage !== undefined) update["Funnel Stage"] = fields.funnelStage;
+  if (fields.offerPitched !== undefined) update["Offer Pitched"] = fields.offerPitched;
+  if (fields.outcome !== undefined) update["Outcome"] = fields.outcome;
+  if (fields.lossReason !== undefined) update["Loss Reason"] = fields.lossReason;
+  if (fields.biggestOpportunity !== undefined) update["Biggest Opportunity"] = fields.biggestOpportunity;
+  if (fields.biggestRisk !== undefined) update["Biggest Risk"] = fields.biggestRisk;
+  if (fields.perSpeakerStats !== undefined) update["Per-Speaker Stats"] = fields.perSpeakerStats;
+  if (fields.keyMoments !== undefined) update["Key Moments"] = fields.keyMoments;
+  return updateRecord(tables.meetingNotes(), meetingId, update);
+}
+
+// ─── Create an Offer record ──
+
+export async function createOffer(args: {
+  offerName: string;
+  type: string;
+  status?: string;
+  company?: string;
+  datePresented?: string;
+  meetingId?: string;
+}) {
+  return createRecord(tables.offers(), {
+    "Offer Name": args.offerName,
+    Type: args.type,
+    Status: args.status ?? "Presented",
+    Company: args.company,
+    "Date Presented": args.datePresented,
+    ...(args.meetingId ? { "Meeting Notes": [args.meetingId] } : {}),
+  });
+}
+
+// ─── Update Offer status ──
+
+export async function updateOfferStatus(
+  offerId: string,
+  status: string,
+  lossReason?: string,
+) {
+  return updateRecord(tables.offers(), offerId, {
+    Status: status,
+    ...(lossReason ? { "Loss Reason": lossReason } : {}),
+  });
+}

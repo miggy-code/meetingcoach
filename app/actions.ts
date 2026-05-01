@@ -5,6 +5,7 @@ import { fetchMeeting } from "@/lib/queries";
 import {
   applyAnalysisToMeeting,
   applyHumanCorrection,
+  applyPipelineFields,
   promoteNextStepToGoal,
   setPostMortemStatus,
   setRelatedProject,
@@ -12,6 +13,8 @@ import {
   updateTranscript,
   createMeeting,
   updateCategory,
+  createOffer,
+  updateOfferStatus,
 } from "@/lib/mutations";
 import { analyzeTranscript, regenerateFollowupEmail } from "@/lib/deepseek";
 import type { NextStepItem } from "@/lib/types";
@@ -35,6 +38,19 @@ export async function runAnalysisAction(meetingId: string) {
       meetingName: meeting.name,
     });
     await applyAnalysisToMeeting(meetingId, result);
+    // Write sales/pipeline fields and AI-enriched fields in a separate call
+    // so a failure here doesn't roll back the core analysis.
+    await applyPipelineFields(meetingId, {
+      meetingType: result.meetingType,
+      funnelStage: result.funnelStage,
+      offerPitched: result.offerPitched,
+      outcome: result.outcome,
+      lossReason: result.lossReason,
+      biggestOpportunity: result.biggestOpportunity,
+      biggestRisk: result.biggestRisk,
+      perSpeakerStats: result.perSpeakerStats,
+      keyMoments: result.keyMoments,
+    });
     revalidatePath("/");
     return { ok: true };
   } catch (e) {
@@ -182,6 +198,51 @@ export async function updateCategoryAction(meetingId: string, category: Category
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to update category.",
+    };
+  }
+}
+
+// ─── Create Offer ──
+
+export async function createOfferAction(args: {
+  offerName: string;
+  type: string;
+  status?: string;
+  company?: string;
+  datePresented?: string;
+  meetingId?: string;
+}) {
+  try {
+    const offer = await createOffer(args);
+    revalidatePath("/");
+    revalidatePath("/goals");
+    return { ok: true, offerId: offer.id };
+  } catch (e) {
+    console.error("createOfferAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to create offer.",
+    };
+  }
+}
+
+// ─── Update Offer Status ──
+
+export async function updateOfferStatusAction(
+  offerId: string,
+  status: string,
+  lossReason?: string,
+) {
+  try {
+    await updateOfferStatus(offerId, status, lossReason);
+    revalidatePath("/");
+    revalidatePath("/goals");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateOfferStatusAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update offer status.",
     };
   }
 }

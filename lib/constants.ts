@@ -106,6 +106,24 @@ export const LOSS_REASONS = [
 ] as const;
 export type LossReason = (typeof LOSS_REASONS)[number];
 
+export const OFFER_TYPES = [
+  "Free AI Workshop – 30 min",
+  "Free AI Workshop – 60 min",
+  "AI Executive Workshop",
+  "AI Transformation & Integration",
+] as const;
+export type OfferType = (typeof OFFER_TYPES)[number];
+
+export const OFFER_STATUSES = [
+  "Draft",
+  "Presented",
+  "Accepted",
+  "Rejected",
+  "Closed Won",
+  "Closed Lost",
+] as const;
+export type OfferStatus = (typeof OFFER_STATUSES)[number];
+
 // ─── Categories that hide signals/objections (per spec) ──
 export const SIGNAL_HIDDEN_CATEGORIES: Category[] = [
   "Planning",

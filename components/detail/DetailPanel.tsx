@@ -1,7 +1,7 @@
 "use client";
 
 import useSWR from "swr";
-import type { MeetingNote, Goal, Project } from "@/lib/types";
+import type { MeetingNote, Goal, Project, Offer } from "@/lib/types";
 import { ScoreSheet } from "./ScoreSheet";
 import { SummaryBlock } from "./SummaryBlock";
 import { NextStepsList } from "./NextStepsList";
@@ -13,6 +13,10 @@ import { FollowupEmailSection } from "./FollowupEmailSection";
 import { TranscriptSection } from "./TranscriptSection";
 import { CorrectionFooter } from "./CorrectionFooter";
 import { RunAnalysisPrompt } from "./RunAnalysisPrompt";
+import { PipelinePanel } from "./PipelinePanel";
+import { PerSpeakerStats } from "./PerSpeakerStats";
+import { KeyMomentsSection } from "./KeyMomentsSection";
+import { OffersPanel } from "./OffersPanel";
 import { CategoryTag } from "@/components/ui/Badges";
 import { formatDate, formatDuration } from "@/lib/utils";
 import {
@@ -26,6 +30,7 @@ type DetailResponse =
       meeting: MeetingNote;
       goals: Goal[];
       projects: Project[];
+      offers: Offer[];
     }
   | { ok: false; error: string };
 
@@ -52,7 +57,7 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
       </div>
     );
   }
-  const { meeting, goals, projects } = data;
+  const { meeting, goals, projects, offers } = data;
   const showSignals =
     meeting.category != null &&
     !SIGNAL_HIDDEN_CATEGORIES.includes(meeting.category);
@@ -60,6 +65,8 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
     meeting.category != null &&
     IMPROVEMENT_VISIBLE_CATEGORIES.includes(meeting.category);
   const showEmail = meeting.category === "Customer Call";
+  const showPipeline =
+    meeting.category === "Customer Call" || meeting.category === "Presentation";
 
   // Empty/pending states
   if (!meeting.transcript) {
@@ -112,7 +119,7 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
         confidence={meeting.analysisConfidence}
       />
 
-      {/* 2D — Two columns */}
+      {/* 2D — Two columns: left = steps + improvements; right = goals + project + offers */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-6">
           <NextStepsList
@@ -128,10 +135,23 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
         <div className="space-y-6">
           <LinkedGoalsList goals={goals} />
           <RelatedProjectCard project={projects[0] ?? null} />
+          <OffersPanel
+            offers={offers}
+            meetingId={meeting.id}
+            meetingDate={meeting.date}
+            onRefresh={() => mutate()}
+          />
         </div>
       </div>
 
-      {/* 2E — Signals */}
+      {/* 2E — Pipeline Intelligence (Customer Call / Presentation only) */}
+      {showPipeline && (
+        <div className="mt-6">
+          <PipelinePanel meeting={meeting} />
+        </div>
+      )}
+
+      {/* 2F — Signals */}
       {showSignals && (
         <div className="mt-6">
           <SignalsSection
@@ -141,7 +161,15 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
         </div>
       )}
 
-      {/* 2F — Follow-up email */}
+      {/* 2G — Per-Speaker Stats + Key Moments (side by side if both present) */}
+      {(meeting.perSpeakerStats || meeting.keyMoments) && (
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <PerSpeakerStats perSpeakerStatsJson={meeting.perSpeakerStats} />
+          <KeyMomentsSection keyMomentsJson={meeting.keyMoments} />
+        </div>
+      )}
+
+      {/* 2H — Follow-up email */}
       {showEmail && (
         <div className="mt-6">
           <FollowupEmailSection
@@ -152,12 +180,12 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
         </div>
       )}
 
-      {/* 2G — Transcript */}
+      {/* 2I — Transcript */}
       <div className="mt-6">
         <TranscriptSection transcript={meeting.transcript} />
       </div>
 
-      {/* 2H — Footer */}
+      {/* 2J — Footer */}
       <CorrectionFooter meeting={meeting} />
     </div>
   );
