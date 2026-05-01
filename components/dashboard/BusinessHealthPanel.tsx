@@ -40,27 +40,68 @@ function StatCard({
 function PersonScoreCard({
   name,
   score,
+  color: colorName,
 }: {
   name: string;
   score: number | null;
+  color: "blue" | "violet";
 }) {
-  const color = scoreColor(score);
-  const colorClass = {
+  const scoreColorKey = scoreColor(score);
+  const scoreColorClass = {
     green: "text-green-600 dark:text-green-400",
     amber: "text-amber-500 dark:text-amber-400",
     red: "text-red-600 dark:text-red-400",
     gray: "text-muted",
-  }[color];
+  }[scoreColorKey];
+
+  const headerClass =
+    colorName === "blue"
+      ? "text-blue-600 dark:text-blue-400"
+      : "text-violet-600 dark:text-violet-400";
+
+  return (
+    <div className="flex flex-col gap-1 rounded-xl border bg-surface-2/40 px-5 py-4">
+      <p className={cn("text-xs font-semibold uppercase tracking-wide", headerClass)}>
+        {name}
+      </p>
+      <p className={cn("text-2xl font-bold tabular-nums", scoreColorClass)}>
+        {score != null ? score.toFixed(1) : "—"}
+      </p>
+      <p className="text-xs text-subtle">Avg score · all-time</p>
+    </div>
+  );
+}
+
+// ─── Conversion rate card ──
+
+function ConversionCard({ counts }: { counts: Record<FunnelStage, number> }) {
+  const won = counts["Closed Won"] ?? 0;
+  const lost = counts["Closed Lost"] ?? 0;
+  const total = won + lost;
+  const rate = total > 0 ? Math.round((won / total) * 100) : null;
+
+  const tone =
+    rate == null
+      ? "text-muted"
+      : rate >= 50
+        ? "text-green-600 dark:text-green-400"
+        : rate >= 30
+          ? "text-amber-600 dark:text-amber-400"
+          : "text-red-600 dark:text-red-400";
 
   return (
     <div className="flex flex-col gap-1 rounded-xl border bg-surface-2/40 px-5 py-4">
       <p className="text-xs font-medium uppercase tracking-wide text-muted">
-        {name} · Avg Score
+        Win Rate
       </p>
-      <p className={cn("text-2xl font-bold tabular-nums", colorClass)}>
-        {score != null ? score.toFixed(1) : "—"}
+      <p className={cn("text-2xl font-bold tabular-nums", tone)}>
+        {rate != null ? `${rate}%` : "—"}
       </p>
-      <p className="text-xs text-subtle">All-time, analyzed meetings</p>
+      <p className="text-xs text-subtle">
+        {total > 0
+          ? `${won} won · ${lost} lost (${total} closed)`
+          : "No closed deals yet"}
+      </p>
     </div>
   );
 }
@@ -79,10 +120,8 @@ const FUNNEL_COLORS: Record<FunnelStage, string> = {
 function FunnelBar({ counts }: { counts: Record<FunnelStage, number> }) {
   const total = Object.values(counts).reduce((a, b) => a + b, 0);
   const active = FUNNEL_STAGES.filter(
-    (s) => s !== "Closed Won" && s !== "Closed Lost"
+    (s) => s !== "Closed Won" && s !== "Closed Lost",
   );
-  const won = counts["Closed Won"] ?? 0;
-  const lost = counts["Closed Lost"] ?? 0;
 
   if (total === 0) {
     return (
@@ -90,74 +129,57 @@ function FunnelBar({ counts }: { counts: Record<FunnelStage, number> }) {
         <p className="text-xs font-medium uppercase tracking-wide text-muted mb-3">
           Pipeline Funnel
         </p>
-        <p className="text-xs text-subtle">No funnel data yet. Run analysis on customer calls to populate.</p>
+        <p className="text-xs text-subtle">
+          No funnel data yet. Run analysis on customer calls to populate.
+        </p>
       </div>
     );
   }
 
   return (
     <div className="rounded-xl border bg-surface-2/40 px-5 py-4">
-      <div className="flex items-center justify-between mb-3">
-        <p className="text-xs font-medium uppercase tracking-wide text-muted">
-          Pipeline Funnel
-        </p>
-        <span className="text-xs text-muted">
-          {won} won · {lost} lost
-        </span>
-      </div>
+      <p className="text-xs font-medium uppercase tracking-wide text-muted mb-3">
+        Pipeline Funnel
+      </p>
 
-      {/* Active stages */}
       <div className="space-y-2">
         {active.map((stage) => {
           const count = counts[stage] ?? 0;
           const pct = total > 0 ? (count / total) * 100 : 0;
           return (
             <div key={stage} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-xs text-muted text-right">{stage}</span>
+              <span className="w-24 shrink-0 text-right text-xs text-muted">
+                {stage}
+              </span>
               <div className="flex-1 h-2 rounded-full bg-surface-3 overflow-hidden">
                 <div
-                  className={cn("h-full rounded-full transition-all", FUNNEL_COLORS[stage])}
+                  className={cn(
+                    "h-full rounded-full transition-all",
+                    FUNNEL_COLORS[stage],
+                  )}
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <span className="w-6 shrink-0 text-xs tabular-nums text-muted">{count}</span>
+              <span className="w-6 shrink-0 text-right text-xs tabular-nums text-muted">
+                {count}
+              </span>
             </div>
           );
         })}
-      </div>
-
-      {/* Won/Lost row */}
-      <div className="mt-3 flex gap-4 border-t pt-3">
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          <span className="text-muted">Won: </span>
-          <span className="font-medium text-green-600">{won}</span>
-        </div>
-        <div className="flex items-center gap-1.5 text-xs">
-          <span className="h-2 w-2 rounded-full bg-red-400" />
-          <span className="text-muted">Lost: </span>
-          <span className="font-medium text-red-600">{lost}</span>
-        </div>
-        {won + lost > 0 && (
-          <div className="ml-auto text-xs text-muted">
-            Win rate:{" "}
-            <span className="font-medium text-foreground">
-              {Math.round((won / (won + lost)) * 100)}%
-            </span>
-          </div>
-        )}
       </div>
     </div>
   );
 }
 
+// ─── Main panel ──
+
 export function BusinessHealthPanel({ stats, funnelCounts }: Props) {
   const pendingTone = stats.pending > 0 ? "amber" : "neutral";
 
   return (
-    <div className="space-y-4">
-      {/* Top row: key numbers */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+    <div className="space-y-3">
+      {/* Row 1: Key numbers (5 cards) */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <StatCard
           label="Meetings This Week"
           value={stats.meetingsThisWeek}
@@ -181,12 +203,13 @@ export function BusinessHealthPanel({ stats, funnelCounts }: Props) {
           sub="Closed Won offers"
           tone={stats.wonOffersThisMonth > 0 ? "green" : "neutral"}
         />
+        <ConversionCard counts={funnelCounts} />
       </div>
 
-      {/* Second row: per-person scores + funnel */}
+      {/* Row 2: Per-person scores + funnel */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <PersonScoreCard name="Gabriel" score={stats.gabrielAvgScore} />
-        <PersonScoreCard name="Miguel" score={stats.miguelAvgScore} />
+        <PersonScoreCard name="Gabriel" score={stats.gabrielAvgScore} color="blue" />
+        <PersonScoreCard name="Miguel" score={stats.miguelAvgScore} color="violet" />
         <FunnelBar counts={funnelCounts} />
       </div>
     </div>

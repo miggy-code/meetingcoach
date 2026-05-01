@@ -18,7 +18,7 @@ import {
   MEETING_LEADS,
   SKILL_DIMENSIONS,
 } from "./constants";
-import type { AnalysisResult } from "./types";
+import type { AnalysisResult, Offer, MeetingNote } from "./types";
 
 function env(name: string, fallback?: string): string {
   const v = process.env[name] ?? fallback;
@@ -78,7 +78,50 @@ export const AnalysisResultSchema = z.object({
   skillScores: z.string().nullable(),     // JSON string
 });
 
-// ─── Prompts ──
+// ─── Prompt helpers ──
+
+/**
+ * Serialise offer history into a compact, readable block for the AI.
+ * Each offer gets one line. Notes are included if present.
+ */
+function buildOfferHistoryBlock(offers: Offer[]): string {
+  if (!offers.length) return "";
+  const lines = offers.map((o) => {
+    const parts = [
+      `• ${o.type ?? "Unknown type"} — Status: ${o.status ?? "Unknown"}`,
+      o.datePresented ? `  Presented: ${o.datePresented}` : null,
+      o.lossReason ? `  Loss reason: ${o.lossReason}` : null,
+      o.notes ? `  Notes: ${o.notes}` : null,
+    ].filter(Boolean);
+    return parts.join("\n");
+  });
+  return `\n--- Offer History for this Company ---\n${lines.join("\n\n")}\n--- End Offer History ---\n`;
+}
+
+/**
+ * Serialise previous analyzed meetings for the same company into a brief summary block.
+ * Keeps it short — just the key facts the AI needs for continuity.
+ */
+function buildPreviousMeetingsBlock(meetings: MeetingNote[]): string {
+  if (!meetings.length) return "";
+  // Sort oldest first so the AI reads the relationship timeline in order
+  const sorted = [...meetings].sort((a, b) =>
+    (a.date ?? "").localeCompare(b.date ?? ""),
+  );
+  const lines = sorted.map((m, i) => {
+    const parts = [
+      `Meeting ${i + 1}: ${m.name} (${m.date ?? "no date"})`,
+      m.summary ? `  Summary: ${m.summary.slice(0, 200)}${m.summary.length > 200 ? "…" : ""}` : null,
+      m.funnelStage ? `  Funnel stage at time: ${m.funnelStage}` : null,
+      m.outcome ? `  Outcome: ${m.outcome}` : null,
+      m.offerPitched ? `  Offer pitched: ${m.offerPitched}` : null,
+    ].filter(Boolean);
+    return parts.join("\n");
+  });
+  return `\n--- Previous Meetings with this Company ---\n${lines.join("\n\n")}\n--- End Previous Meetings ---\n`;
+}
+
+// ─── System prompt ──
 
 const ANALYZE_SYSTEM_PROMPT = `You are an elite, rigorous sales coach and meeting analyst for Throttl, an AI advisory firm. You analyze transcripts with a critical eye, looking for missed opportunities, weak framing, and poor objection handling. You do not sugarcoat.
 
@@ -137,6 +180,11 @@ Coaching Rigor & Focus Areas:
 - If the prospect spoke less than 40% of the time on a Discovery call, penalize Talk Ratio heavily.
 - Do not give generic advice. Always quote the transcript and provide a better alternative script.
 
+Context Injection Rules:
+- If "Offer History for this Company" is provided: use it to understand where this prospect is in the sales cycle, whether they've been pitched before, and whether a previous offer was rejected. Reference this history in the debrief and in biggestRisk/biggestOpportunity.
+- If "Previous Meetings with this Company" is provided: use it to understand the relationship arc. Reference what was discussed before, whether commitments were followed up on, and whether the conversation is progressing or stalling.
+- If "Pre-Analysis Context Notes from the team" is provided: treat these as ground truth. If the team flagged a specific concern (e.g., "we went too technical"), prioritize finding evidence of that in the transcript and address it directly in the debrief.
+
 Output ONLY the JSON object. No commentary.`;
 
 // ─── Public: analyze ──
@@ -150,6 +198,8 @@ export async function analyzeTranscript(args: {
   contextNotes?: string;
   company?: string;
   contactName?: string;
+  offerHistory?: Offer[];
+  previousMeetings?: MeetingNote[];
 }): Promise<AnalysisResult> {
   const userPrompt = [
     `Meeting: ${args.meetingName}`,
@@ -158,7 +208,22 @@ export async function analyzeTranscript(args: {
     args.company ? `Company: ${args.company}` : null,
     args.contactName ? `Contact Name: ${args.contactName}` : null,
     args.knownAttendees ? `Known attendees: ${args.knownAttendees}` : null,
-    args.contextNotes ? `\nPre-Analysis Context Notes from the team:\n${args.contextNotes}\n` : null,
+
+    // ─── Offer history block ──
+    args.offerHistory && args.offerHistory.length > 0
+      ? buildOfferHistoryBlock(args.offerHistory)
+      : null,
+
+    // ─── Previous meetings block ──
+    args.previousMeetings && args.previousMeetings.length > 0
+      ? buildPreviousMeetingsBlock(args.previousMeetings)
+      : null,
+
+    // ─── Context notes (team-written, highest priority) ──
+    args.contextNotes
+      ? `\n--- Pre-Analysis Context Notes from the team ---\n${args.contextNotes}\n--- End Context Notes ---\n`
+      : null,
+
     "",
     "Transcript:",
     args.transcript,

@@ -237,6 +237,7 @@ export async function createOffer(args: {
   company?: string;
   datePresented?: string;
   meetingId?: string;
+  notes?: string;
 }) {
   return createRecord(tables.offers(), {
     "Offer Name": args.offerName,
@@ -244,11 +245,30 @@ export async function createOffer(args: {
     Status: args.status ?? "Presented",
     Company: args.company,
     "Date Presented": args.datePresented,
+    Notes: args.notes ?? null,
     ...(args.meetingId ? { "Meeting Notes": [args.meetingId] } : {}),
   });
 }
 
 // ─── Update Offer status ──
+
+// ─── Update goal status ──
+
+export async function updateGoalStatus(
+  goalId: string,
+  status: GoalStatus,
+) {
+  return updateRecord(tables.goalsTracker(), goalId, { Status: status });
+}
+
+// ─── Update offer notes ──
+
+export async function updateOfferNotes(
+  offerId: string,
+  notes: string,
+) {
+  return updateRecord(tables.offers(), offerId, { Notes: notes });
+}
 
 export async function updateOfferStatus(
   offerId: string,

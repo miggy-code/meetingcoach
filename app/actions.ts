@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { fetchMeeting } from "@/lib/queries";
+import { fetchMeeting, fetchAllOffers, fetchAllMeetings } from "@/lib/queries";
 import {
   applyAnalysisToMeeting,
   applyHumanCorrection,
@@ -16,6 +16,8 @@ import {
   updateMeetingMeta,
   createOffer,
   updateOfferStatus,
+  updateGoalStatus,
+  updateOfferNotes,
 } from "@/lib/mutations";
 import { analyzeTranscript, regenerateFollowupEmail } from "@/lib/deepseek";
 import type { NextStepItem } from "@/lib/types";
@@ -32,6 +34,26 @@ export async function runAnalysisAction(meetingId: string) {
     return { ok: false, error: "Meeting category is required before analysis." };
   }
   try {
+    // ─── Build offer history context for this company ──
+    let offerHistory: import("@/lib/types").Offer[] = [];
+    let previousMeetings: import("@/lib/types").MeetingNote[] = [];
+    if (meeting.company) {
+      const [allOffers, allMeetings] = await Promise.all([
+        fetchAllOffers(),
+        fetchAllMeetings(),
+      ]);
+      const companyNorm = meeting.company.toLowerCase().trim();
+      offerHistory = allOffers.filter(
+        (o) => o.company?.toLowerCase().trim() === companyNorm,
+      );
+      previousMeetings = allMeetings.filter(
+        (m) =>
+          m.id !== meetingId &&
+          m.company?.toLowerCase().trim() === companyNorm &&
+          m.postMortemStatus === "Complete",
+      );
+    }
+
     const result = await analyzeTranscript({
       transcript: meeting.transcript,
       category: meeting.category,
@@ -41,6 +63,8 @@ export async function runAnalysisAction(meetingId: string) {
       contextNotes: meeting.contextNotes ?? undefined,
       company: meeting.company ?? undefined,
       contactName: meeting.contactName ?? undefined,
+      offerHistory: offerHistory.length > 0 ? offerHistory : undefined,
+      previousMeetings: previousMeetings.length > 0 ? previousMeetings : undefined,
     });
     // applyAnalysisToMeeting now writes ALL fields including pipeline + debriefs
     await applyAnalysisToMeeting(meetingId, result);
@@ -252,6 +276,7 @@ export async function createOfferAction(args: {
   company?: string;
   datePresented?: string;
   meetingId?: string;
+  notes?: string;
 }) {
   try {
     const offer = await createOffer(args);
@@ -263,6 +288,45 @@ export async function createOfferAction(args: {
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to create offer.",
+    };
+  }
+}
+
+// ─── Update Goal Status ──
+
+export async function updateGoalStatusAction(
+  goalId: string,
+  status: GoalStatus,
+) {
+  try {
+    await updateGoalStatus(goalId, status);
+    revalidatePath("/goals");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateGoalStatusAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update goal status.",
+    };
+  }
+}
+
+// ─── Update Offer Notes ──
+
+export async function updateOfferNotesAction(
+  offerId: string,
+  notes: string,
+) {
+  try {
+    await updateOfferNotes(offerId, notes);
+    revalidatePath("/");
+    revalidatePath("/goals");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateOfferNotesAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update offer notes.",
     };
   }
 }
