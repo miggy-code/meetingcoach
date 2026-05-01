@@ -13,7 +13,12 @@ import type {
   MeetingNote,
   NextStepItem,
 } from "./types";
-import type { Category, GoalStatus, Priority, Confidence } from "./constants";
+import type {
+  Category,
+  GoalStatus,
+  Priority,
+  MeetingLead,
+} from "./constants";
 
 // ─── Apply AI analysis result to a meeting ──
 
@@ -38,6 +43,22 @@ export async function applyAnalysisToMeeting(
   };
   if (result.followupEmail) fields["Follow-up Email"] = result.followupEmail;
   if (result.duration) fields["Duration"] = result.duration;
+
+  // ─── Sales / pipeline ──
+  if (result.meetingType !== undefined) fields["Meeting Type"] = result.meetingType;
+  if (result.funnelStage !== undefined) fields["Funnel Stage"] = result.funnelStage;
+  if (result.offerPitched !== undefined) fields["Offer Pitched"] = result.offerPitched;
+  if (result.outcome !== undefined) fields["Outcome"] = result.outcome;
+  if (result.lossReason !== undefined) fields["Loss Reason"] = result.lossReason;
+  if (result.biggestOpportunity !== undefined) fields["Biggest Opportunity"] = result.biggestOpportunity;
+  if (result.biggestRisk !== undefined) fields["Biggest Risk"] = result.biggestRisk;
+
+  // ─── AI-enriched ──
+  if (result.perSpeakerStats !== undefined) fields["Per-Speaker Stats"] = result.perSpeakerStats;
+  if (result.keyMoments !== undefined) fields["Key Moments"] = result.keyMoments;
+  if (result.gabrielDebrief !== undefined) fields["Gabriel Debrief"] = result.gabrielDebrief;
+  if (result.miguelDebrief !== undefined) fields["Miguel Debrief"] = result.miguelDebrief;
+  if (result.skillScores !== undefined) fields["Skill Scores"] = result.skillScores;
 
   return updateRecord(tables.meetingNotes(), meetingId, fields);
 }
@@ -116,14 +137,37 @@ export async function updateTranscript(meetingId: string, transcript: string) {
   });
 }
 
+// ─── Update context notes ──
+
+export async function updateContextNotes(meetingId: string, notes: string) {
+  return updateRecord(tables.meetingNotes(), meetingId, {
+    "Context Notes": notes,
+  });
+}
+
 // ─── Create meeting ──
 
-export async function createMeeting(name: string, category: Category, transcript: string, date: string) {
+export async function createMeeting(args: {
+  name: string;
+  category: Category;
+  transcript: string;
+  date: string;
+  meetingLead: MeetingLead;
+  company?: string;
+  contactName?: string;
+  meetingTime?: string;
+  contextNotes?: string;
+}) {
   return createRecord(tables.meetingNotes(), {
-    Name: name,
-    Category: category,
-    Transcript: transcript,
-    Date: date,
+    Name: args.name,
+    Category: args.category,
+    Transcript: args.transcript,
+    Date: args.date,
+    "Meeting Lead": args.meetingLead,
+    Company: args.company ?? null,
+    "Contact Name": args.contactName ?? null,
+    "Meeting Time": args.meetingTime ?? null,
+    "Context Notes": args.contextNotes ?? null,
     "Post-Mortem Status": "Not Analyzed",
   });
 }
@@ -136,7 +180,26 @@ export async function updateCategory(meetingId: string, category: Category) {
   });
 }
 
-// ─── Apply AI-generated sales/pipeline fields ──
+// ─── Update meeting metadata (lead, company, contact, time) ──
+
+export async function updateMeetingMeta(
+  meetingId: string,
+  meta: {
+    meetingLead?: MeetingLead;
+    company?: string;
+    contactName?: string;
+    meetingTime?: string;
+  },
+) {
+  const update: Record<string, unknown> = {};
+  if (meta.meetingLead !== undefined) update["Meeting Lead"] = meta.meetingLead;
+  if (meta.company !== undefined) update["Company"] = meta.company;
+  if (meta.contactName !== undefined) update["Contact Name"] = meta.contactName;
+  if (meta.meetingTime !== undefined) update["Meeting Time"] = meta.meetingTime;
+  return updateRecord(tables.meetingNotes(), meetingId, update);
+}
+
+// ─── Apply AI-generated sales/pipeline fields (kept for backward compat) ──
 
 export async function applyPipelineFields(
   meetingId: string,

@@ -5,20 +5,21 @@ import { fetchMeeting } from "@/lib/queries";
 import {
   applyAnalysisToMeeting,
   applyHumanCorrection,
-  applyPipelineFields,
   promoteNextStepToGoal,
   setPostMortemStatus,
   setRelatedProject,
   updateFollowupEmail,
   updateTranscript,
+  updateContextNotes,
   createMeeting,
   updateCategory,
+  updateMeetingMeta,
   createOffer,
   updateOfferStatus,
 } from "@/lib/mutations";
 import { analyzeTranscript, regenerateFollowupEmail } from "@/lib/deepseek";
 import type { NextStepItem } from "@/lib/types";
-import type { Category, GoalStatus, Priority } from "@/lib/constants";
+import type { Category, GoalStatus, Priority, MeetingLead } from "@/lib/constants";
 
 // ─── Run Analysis ──
 
@@ -36,21 +37,13 @@ export async function runAnalysisAction(meetingId: string) {
       category: meeting.category,
       knownAttendees: meeting.attendees ?? undefined,
       meetingName: meeting.name,
+      meetingLead: meeting.meetingLead ?? undefined,
+      contextNotes: meeting.contextNotes ?? undefined,
+      company: meeting.company ?? undefined,
+      contactName: meeting.contactName ?? undefined,
     });
+    // applyAnalysisToMeeting now writes ALL fields including pipeline + debriefs
     await applyAnalysisToMeeting(meetingId, result);
-    // Write sales/pipeline fields and AI-enriched fields in a separate call
-    // so a failure here doesn't roll back the core analysis.
-    await applyPipelineFields(meetingId, {
-      meetingType: result.meetingType,
-      funnelStage: result.funnelStage,
-      offerPitched: result.offerPitched,
-      outcome: result.outcome,
-      lossReason: result.lossReason,
-      biggestOpportunity: result.biggestOpportunity,
-      biggestRisk: result.biggestRisk,
-      perSpeakerStats: result.perSpeakerStats,
-      keyMoments: result.keyMoments,
-    });
     revalidatePath("/");
     return { ok: true };
   } catch (e) {
@@ -111,7 +104,7 @@ export async function applyCorrectionAction(args: {
   return { ok: true };
 }
 
-// ─── Status transition (Mark as Reviewed, etc.) ──
+// ─── Status transition ──
 
 export async function setStatusAction(
   meetingId: string,
@@ -165,6 +158,25 @@ export async function updateTranscriptAction(
   }
 }
 
+// ─── Update Context Notes ──
+
+export async function updateContextNotesAction(
+  meetingId: string,
+  notes: string,
+) {
+  try {
+    await updateContextNotes(meetingId, notes);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateContextNotesAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to save context notes.",
+    };
+  }
+}
+
 // ─── Create Meeting ──
 
 export async function createMeetingAction(args: {
@@ -172,9 +184,14 @@ export async function createMeetingAction(args: {
   category: Category;
   transcript: string;
   date: string;
+  meetingLead: MeetingLead;
+  company?: string;
+  contactName?: string;
+  meetingTime?: string;
+  contextNotes?: string;
 }) {
   try {
-    const record = await createMeeting(args.name, args.category, args.transcript, args.date);
+    const record = await createMeeting(args);
     revalidatePath("/");
     return { ok: true, id: record.id };
   } catch (e) {
@@ -198,6 +215,30 @@ export async function updateCategoryAction(meetingId: string, category: Category
     return {
       ok: false,
       error: e instanceof Error ? e.message : "Failed to update category.",
+    };
+  }
+}
+
+// ─── Update Meeting Metadata ──
+
+export async function updateMeetingMetaAction(
+  meetingId: string,
+  meta: {
+    meetingLead?: MeetingLead;
+    company?: string;
+    contactName?: string;
+    meetingTime?: string;
+  },
+) {
+  try {
+    await updateMeetingMeta(meetingId, meta);
+    revalidatePath("/");
+    return { ok: true };
+  } catch (e) {
+    console.error("updateMeetingMetaAction failed", e);
+    return {
+      ok: false,
+      error: e instanceof Error ? e.message : "Failed to update meeting.",
     };
   }
 }

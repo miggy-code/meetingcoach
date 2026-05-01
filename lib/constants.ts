@@ -124,6 +124,22 @@ export const OFFER_STATUSES = [
 ] as const;
 export type OfferStatus = (typeof OFFER_STATUSES)[number];
 
+export const MEETING_LEADS = ["Gabriel", "Miguel", "Both"] as const;
+export type MeetingLead = (typeof MEETING_LEADS)[number];
+
+// ─── Coaching skill dimensions ──
+export const SKILL_DIMENSIONS = [
+  "Discovery Questions",
+  "Objection Handling",
+  "Offer Clarity",
+  "Talk Ratio",
+  "Technical Jargon Control",
+  "Closing / Next Step Commitment",
+  "Listening & Responsiveness",
+  "Energy & Presence",
+] as const;
+export type SkillDimension = (typeof SKILL_DIMENSIONS)[number];
+
 // ─── Categories that hide signals/objections (per spec) ──
 export const SIGNAL_HIDDEN_CATEGORIES: Category[] = [
   "Planning",

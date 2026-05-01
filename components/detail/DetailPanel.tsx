@@ -17,8 +17,8 @@ import { PipelinePanel } from "./PipelinePanel";
 import { PerSpeakerStats } from "./PerSpeakerStats";
 import { KeyMomentsSection } from "./KeyMomentsSection";
 import { OffersPanel } from "./OffersPanel";
-import { CategoryTag } from "@/components/ui/Badges";
-import { formatDate, formatDuration } from "@/lib/utils";
+import { CoachingDebriefSection } from "./CoachingDebriefSection";
+import { MeetingHeader } from "./MeetingHeader";
 import {
   IMPROVEMENT_VISIBLE_CATEGORIES,
   SIGNAL_HIDDEN_CATEGORIES,
@@ -67,21 +67,28 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
   const showEmail = meeting.category === "Customer Call";
   const showPipeline =
     meeting.category === "Customer Call" || meeting.category === "Presentation";
+  const showCoaching =
+    showPipeline &&
+    (meeting.gabrielDebrief || meeting.miguelDebrief || meeting.skillScores);
 
-  // Empty/pending states
+  // ─── No transcript yet ──
   if (!meeting.transcript) {
     return (
-      <div className="border-t bg-surface-2/30 px-6 py-8 text-sm">
-        <p className="text-muted">
-          No transcript uploaded. Paste a transcript into the meeting record in
-          Airtable to enable analysis.
+      <div className="border-t bg-surface-2/30 px-6 py-8 space-y-4">
+        <MeetingHeader meeting={meeting} onRefresh={() => mutate()} />
+        <p className="text-sm text-muted">
+          No transcript uploaded yet. Paste the transcript in the field above or
+          wait for the Fathom webhook to deliver it automatically.
         </p>
       </div>
     );
   }
+
+  // ─── Not analyzed yet ──
   if (meeting.postMortemStatus === "Not Analyzed" || !meeting.summary) {
     return (
-      <div className="border-t bg-surface-2/30 px-6 py-8">
+      <div className="border-t bg-surface-2/30 px-6 py-8 space-y-4">
+        <MeetingHeader meeting={meeting} onRefresh={() => mutate()} />
         <RunAnalysisPrompt meeting={meeting} onRefresh={() => mutate()} />
         <TranscriptSection transcript={meeting.transcript} />
       </div>
@@ -89,38 +96,41 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
   }
 
   return (
-    <div className="border-t bg-surface-2/30 px-6 py-6">
-      {/* 2A — Header */}
-      <div className="mb-6 flex flex-wrap items-center gap-3 text-xs text-muted">
-        <CategoryTag category={meeting.category} />
-        <span>{formatDate(meeting.date)}</span>
-        <span>·</span>
-        <span>{formatDuration(meeting.duration)}</span>
-        {meeting.attendees && (
-          <>
-            <span>·</span>
-            <span className="truncate">{meeting.attendees}</span>
-          </>
-        )}
-      </div>
+    <div className="border-t bg-surface-2/30 px-6 py-6 space-y-6">
 
-      {/* 2B — Score Sheet */}
-      <div className="mb-6">
-        <ScoreSheet
-          score={meeting.meetingScore}
-          breakdown={meeting.scoreBreakdown}
-          confidence={meeting.analysisConfidence}
-        />
-      </div>
+      {/* ── Structured header: metadata + context notes ── */}
+      <MeetingHeader meeting={meeting} onRefresh={() => mutate()} />
 
-      {/* 2C — Summary */}
+      {/* ── Score sheet ── */}
+      <ScoreSheet
+        score={meeting.meetingScore}
+        breakdown={meeting.scoreBreakdown}
+        confidence={meeting.analysisConfidence}
+      />
+
+      {/* ── Summary ── */}
       <SummaryBlock
         summary={meeting.summary}
         confidence={meeting.analysisConfidence}
       />
 
-      {/* 2D — Two columns: left = steps + improvements; right = goals + project + offers */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[3fr_2fr]">
+      {/* ── Coaching Debriefs (most important for customer calls) ── */}
+      {showCoaching && (
+        <CoachingDebriefSection
+          gabrielDebrief={meeting.gabrielDebrief}
+          miguelDebrief={meeting.miguelDebrief}
+          skillScoresJson={meeting.skillScores}
+          meetingLead={meeting.meetingLead}
+        />
+      )}
+
+      {/* ── Pipeline Intelligence ── */}
+      {showPipeline && (
+        <PipelinePanel meeting={meeting} />
+      )}
+
+      {/* ── Two-column: next steps + improvements | goals + project + offers ── */}
+      <div className="grid gap-6 lg:grid-cols-[3fr_2fr]">
         <div className="space-y-6">
           <NextStepsList
             steps={meeting.nextSteps}
@@ -144,48 +154,35 @@ export function DetailPanel({ meetingId }: { meetingId: string }) {
         </div>
       </div>
 
-      {/* 2E — Pipeline Intelligence (Customer Call / Presentation only) */}
-      {showPipeline && (
-        <div className="mt-6">
-          <PipelinePanel meeting={meeting} />
-        </div>
-      )}
-
-      {/* 2F — Signals */}
+      {/* ── Signals (objections + buying signals) ── */}
       {showSignals && (
-        <div className="mt-6">
-          <SignalsSection
-            objections={meeting.objections}
-            buyingSignals={meeting.buyingSignals}
-          />
-        </div>
+        <SignalsSection
+          objections={meeting.objections}
+          buyingSignals={meeting.buyingSignals}
+        />
       )}
 
-      {/* 2G — Per-Speaker Stats + Key Moments (side by side if both present) */}
+      {/* ── Per-Speaker Stats + Key Moments ── */}
       {(meeting.perSpeakerStats || meeting.keyMoments) && (
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+        <div className="grid gap-6 lg:grid-cols-2">
           <PerSpeakerStats perSpeakerStatsJson={meeting.perSpeakerStats} />
           <KeyMomentsSection keyMomentsJson={meeting.keyMoments} />
         </div>
       )}
 
-      {/* 2H — Follow-up email */}
+      {/* ── Follow-up email suggestion ── */}
       {showEmail && (
-        <div className="mt-6">
-          <FollowupEmailSection
-            email={meeting.followupEmail}
-            meetingId={meeting.id}
-            onRefresh={() => mutate()}
-          />
-        </div>
+        <FollowupEmailSection
+          email={meeting.followupEmail}
+          meetingId={meeting.id}
+          onRefresh={() => mutate()}
+        />
       )}
 
-      {/* 2I — Transcript */}
-      <div className="mt-6">
-        <TranscriptSection transcript={meeting.transcript} />
-      </div>
+      {/* ── Transcript ── */}
+      <TranscriptSection transcript={meeting.transcript} />
 
-      {/* 2J — Footer */}
+      {/* ── Footer ── */}
       <CorrectionFooter meeting={meeting} />
     </div>
   );

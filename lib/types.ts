@@ -19,6 +19,8 @@ import type {
   LossReason,
   OfferType,
   OfferStatus,
+  MeetingLead,
+  SkillDimension,
 } from "./constants";
 
 // ─── Airtable raw shapes (after our normalization layer) ──
@@ -66,18 +68,30 @@ export interface HumanCorrection {
   at: string; // ISO timestamp
 }
 
+// ─── Per-person skill score (parsed from Skill Scores JSON) ──
+
+export interface PersonSkillScores {
+  person: string; // "Gabriel" | "Miguel"
+  scores: Partial<Record<SkillDimension, number>>; // 1–10 per dimension
+}
+
 // ─── Meeting Notes record ──
 
 export interface MeetingNote {
   id: string;
   name: string;
   transcript: string | null;
-  date: string | null; // YYYY-MM-DD
+  date: string | null;           // YYYY-MM-DD
+  meetingTime: string | null;    // HH:MM (24h)
   category: Category | null;
+  meetingLead: MeetingLead | null;
+  company: string | null;
+  contactName: string | null;
+  contextNotes: string | null;   // pre-analysis plain-English notes
   postMortemStatus: PostMortemStatus | null;
   analysisConfidence: Confidence | null;
   summary: string | null;
-  nextSteps: NextStepItem[]; // parsed from JSON
+  nextSteps: NextStepItem[];
   improvementAreas: string | null;
   followupEmail: string | null;
   attendees: string | null;
@@ -93,7 +107,7 @@ export interface MeetingNote {
   relatedProjectIds: string[];
   relatedOfferIds: string[];
   assignee: AirtableCollaborator | null;
-  status: string | null; // existing Todo/In progress/Done
+  status: string | null;
   attachments: AirtableAttachment[];
   // ─── Sales / pipeline fields ──
   meetingType: MeetingType | null;
@@ -104,8 +118,11 @@ export interface MeetingNote {
   biggestOpportunity: string | null;
   biggestRisk: string | null;
   // ─── AI-enriched fields ──
-  perSpeakerStats: string | null; // JSON string — parsed downstream if needed
-  keyMoments: string | null;      // JSON string — parsed downstream if needed
+  perSpeakerStats: string | null;  // JSON string
+  keyMoments: string | null;       // JSON string
+  gabrielDebrief: string | null;   // coaching debrief for Gabriel
+  miguelDebrief: string | null;    // coaching debrief for Miguel
+  skillScores: string | null;      // JSON string → PersonSkillScores[]
 }
 
 // ─── Goal record ──
@@ -145,10 +162,10 @@ export interface AnalysisResult {
   improvementAreas: string;
   objections: ObjectionType[];
   buyingSignals: BuyingSignalType[];
-  followupEmail: string | null; // null when category != Customer Call
+  followupEmail: string | null;
   attendees: string;
   speakerMap: SpeakerMap;
-  duration?: number; // estimated from transcript if not set
+  duration?: number;
   // ─── Sales / pipeline fields ──
   meetingType: MeetingType | null;
   funnelStage: FunnelStage | null;
@@ -157,27 +174,36 @@ export interface AnalysisResult {
   lossReason: LossReason | null;
   biggestOpportunity: string | null;
   biggestRisk: string | null;
-  // ─── AI-enriched fields (JSON strings) ──
+  // ─── AI-enriched fields ──
   perSpeakerStats: string | null;
   keyMoments: string | null;
+  gabrielDebrief: string | null;
+  miguelDebrief: string | null;
+  skillScores: string | null;
 }
 
 // ─── Dashboard data (aggregated for the page) ──
 
 export interface DashboardData {
-  meetings: MeetingNote[]; // last 14 days
-  allMeetings: MeetingNote[]; // full set, lazy-loaded
+  meetings: MeetingNote[];        // last 14 days
+  allMeetings: MeetingNote[];     // full set
   weekStats: {
     meetingsThisWeek: number;
     analyzed: number;
     pending: number;
     avgScore: number | null;
+    gabrielAvgScore: number | null;
+    miguelAvgScore: number | null;
+    customerCallsThisWeek: number;
+    wonOffersThisMonth: number;
+    activeOffers: number;
   };
   monthlyTrends: {
     objections: Record<ObjectionType, number>;
     buyingSignals: Record<BuyingSignalType, number>;
   };
   reviewQueueCount: number;
+  funnelCounts: Record<FunnelStage, number>;
 }
 
 // ─── Offer record ──
@@ -188,7 +214,7 @@ export interface Offer {
   type: OfferType | null;
   status: OfferStatus | null;
   company: string | null;
-  datePresented: string | null; // YYYY-MM-DD
+  datePresented: string | null;
   owner: AirtableCollaborator | null;
   notes: string | null;
   lossReason: LossReason | null;
@@ -200,14 +226,14 @@ export interface Offer {
 export interface SpeakerStat {
   speaker: string;
   talkPercentage: number;
-  longestMonologue: string; // e.g. "2m 15s"
+  longestMonologue: string;
   questionsAsked: number;
 }
 
 // ─── Key moment (parsed from JSON string) ──
 
 export interface KeyMoment {
-  timestamp: string; // e.g. "12:30"
+  timestamp: string;
   description: string;
   type: "Objection" | "Buying Signal" | "Decision" | "Risk" | "Opportunity" | "Other";
 }

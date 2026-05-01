@@ -15,6 +15,8 @@ import {
   FUNNEL_STAGES,
   MEETING_OUTCOMES,
   LOSS_REASONS,
+  MEETING_LEADS,
+  SKILL_DIMENSIONS,
 } from "./constants";
 import type { AnalysisResult } from "./types";
 
@@ -71,6 +73,9 @@ export const AnalysisResultSchema = z.object({
   // ─── AI-enriched fields ──
   perSpeakerStats: z.string().nullable(), // JSON string
   keyMoments: z.string().nullable(),      // JSON string
+  gabrielDebrief: z.string().nullable(),
+  miguelDebrief: z.string().nullable(),
+  skillScores: z.string().nullable(),     // JSON string
 });
 
 // ─── Prompts ──
@@ -112,19 +117,25 @@ You MUST output valid JSON matching this exact shape:
   
   // AI-Enriched Fields (Must be stringified JSON)
   "perSpeakerStats": "[{\\"speaker\\": \\"Name\\", \\"talkPercentage\\": 45, \\"longestMonologue\\": \\"2m 15s\\", \\"questionsAsked\\": 3}]",
-  "keyMoments": "[{\\"timestamp\\": \\"12:30\\", \\"description\\": \\"Prospect revealed budget constraint\\", \\"type\\": \\"Objection\\"}]"
+  "keyMoments": "[{\\"timestamp\\": \\"12:30\\", \\"description\\": \\"Prospect revealed budget constraint\\", \\"type\\": \\"Objection\\"}]",
+  
+  // Comprehensive Coaching Debriefs
+  "gabrielDebrief": "A 2-3 paragraph direct coaching debrief addressed to Gabriel. Quote specific lines he said. Tell him exactly what he did wrong (e.g., 'You got too deep into technical details here...', 'You talked too much instead of asking...'). Give him a specific script or reframe for next time. If he wasn't on the call, output null.",
+  "miguelDebrief": "A 2-3 paragraph direct coaching debrief addressed to Miguel. Quote specific lines he said. Tell him exactly what he did wrong. Give him a specific script or reframe for next time. If he wasn't on the call, output null.",
+  "skillScores": "[{\\"person\\": \\"Gabriel\\", \\"scores\\": {\\"Discovery Questions\\": 6, \\"Objection Handling\\": 4, \\"Offer Clarity\\": 7, \\"Talk Ratio\\": 5, \\"Technical Jargon Control\\": 3, \\"Closing / Next Step Commitment\\": 8, \\"Listening & Responsiveness\\": 6, \\"Energy & Presence\\": 7}}]"
 }
 
 Rules by category:
-- Customer Call / Presentation: include objections, buyingSignals, followupEmail, sales/pipeline fields. Score objectionsAddressed normally.
-- Planning / Standup / Retro: objections=[], buyingSignals=[], followupEmail=null, sales fields=null. objectionsAddressed=0.
+- Customer Call / Presentation: include objections, buyingSignals, followupEmail, sales/pipeline fields, debriefs, and skillScores.
+- Planning / Standup / Retro: objections=[], buyingSignals=[], followupEmail=null, sales fields=null, debriefs=null, skillScores=null.
 - Standup: improvementAreas="" (do not analyze).
-- Planning / Retro / Customer Call: include improvementAreas.
 
-Coaching Rigor:
-- Throttl's ICP hates technical jargon. If the transcript contains "LLM", "neural networks", or "machine learning" from the Throttl side, penalize the score and call it out in improvementAreas.
-- If the prospect spoke less than 40% of the time on a Discovery call, penalize participationBalance heavily.
-- If next steps are vague (e.g., "We will touch base next week"), score nextStepsClarity as 0 or 1.
+Coaching Rigor & Focus Areas:
+- The Throttl team's main issues are: getting too deep into technical stuff when people don't understand it, not clarifying offers, talking too much, not asking enough questions, not clarifying the pitch, and not following up on objections properly.
+- You MUST watch for these specific anti-patterns. If you see them, call them out aggressively in the debriefs.
+- If the transcript contains "LLM", "neural networks", or "machine learning" from the Throttl side, penalize the Technical Jargon Control score heavily and quote the exact moment in the debrief.
+- If the prospect spoke less than 40% of the time on a Discovery call, penalize Talk Ratio heavily.
+- Do not give generic advice. Always quote the transcript and provide a better alternative script.
 
 Output ONLY the JSON object. No commentary.`;
 
@@ -135,11 +146,19 @@ export async function analyzeTranscript(args: {
   category: (typeof CATEGORIES)[number];
   knownAttendees?: string;
   meetingName: string;
+  meetingLead?: string;
+  contextNotes?: string;
+  company?: string;
+  contactName?: string;
 }): Promise<AnalysisResult> {
   const userPrompt = [
     `Meeting: ${args.meetingName}`,
     `Category: ${args.category}`,
+    args.meetingLead ? `Meeting Lead: ${args.meetingLead}` : null,
+    args.company ? `Company: ${args.company}` : null,
+    args.contactName ? `Contact Name: ${args.contactName}` : null,
     args.knownAttendees ? `Known attendees: ${args.knownAttendees}` : null,
+    args.contextNotes ? `\nPre-Analysis Context Notes from the team:\n${args.contextNotes}\n` : null,
     "",
     "Transcript:",
     args.transcript,

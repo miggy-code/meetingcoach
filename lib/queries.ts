@@ -34,8 +34,10 @@ import {
   type LossReason,
   type OfferType,
   type OfferStatus,
+  type MeetingLead,
   OBJECTION_TYPES,
   BUYING_SIGNAL_TYPES,
+  FUNNEL_STAGES,
 } from "./constants";
 import { tryParseJSON, thisWeekRange, thisMonthRange, isInRange, last14DaysRange } from "./utils";
 
@@ -45,7 +47,12 @@ interface MeetingNotesFields {
   Name?: string;
   Transcript?: string;
   Date?: string;
+  "Meeting Time"?: string;
   Category?: Category;
+  "Meeting Lead"?: MeetingLead;
+  Company?: string;
+  "Contact Name"?: string;
+  "Context Notes"?: string;
   "Post-Mortem Status"?: PostMortemStatus;
   "Analysis Confidence"?: Confidence;
   Summary?: string;
@@ -78,6 +85,9 @@ interface MeetingNotesFields {
   // ─── AI-enriched fields ──
   "Per-Speaker Stats"?: string;
   "Key Moments"?: string;
+  "Gabriel Debrief"?: string;
+  "Miguel Debrief"?: string;
+  "Skill Scores"?: string;
 }
 
 interface GoalFields {
@@ -121,7 +131,12 @@ function normalizeMeeting(r: AirtableRecord<MeetingNotesFields>): MeetingNote {
     name: f.Name ?? "(untitled)",
     transcript: f.Transcript ?? null,
     date: f.Date ?? null,
+    meetingTime: f["Meeting Time"] ?? null,
     category: f.Category ?? null,
+    meetingLead: f["Meeting Lead"] ?? null,
+    company: f.Company ?? null,
+    contactName: f["Contact Name"] ?? null,
+    contextNotes: f["Context Notes"] ?? null,
     postMortemStatus: f["Post-Mortem Status"] ?? null,
     analysisConfidence: f["Analysis Confidence"] ?? null,
     summary: f.Summary ?? null,
@@ -154,6 +169,9 @@ function normalizeMeeting(r: AirtableRecord<MeetingNotesFields>): MeetingNote {
     // ─── AI-enriched fields ──
     perSpeakerStats: f["Per-Speaker Stats"] ?? null,
     keyMoments: f["Key Moments"] ?? null,
+    gabrielDebrief: f["Gabriel Debrief"] ?? null,
+    miguelDebrief: f["Miguel Debrief"] ?? null,
+    skillScores: f["Skill Scores"] ?? null,
   };
 }
 
@@ -263,7 +281,7 @@ export async function fetchProjectsByIds(ids: string[]): Promise<Project[]> {
 // ─── Dashboard aggregation ──
 
 export async function fetchDashboardData(): Promise<DashboardData> {
-  const all = await fetchAllMeetings();
+  const [all, allOffers] = await Promise.all([fetchAllMeetings(), fetchAllOffers()]);
   const week = thisWeekRange();
   const month = thisMonthRange();
   const last14 = last14DaysRange();
@@ -295,6 +313,40 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       ? analyzedScores.reduce((a, b) => a + b, 0) / analyzedScores.length
       : null;
 
+  // Per-person average scores (all time, analyzed meetings only)
+  const analyzedAll = all.filter((m) => m.postMortemStatus === "Complete" && m.meetingScore != null);
+  function avgScoreFor(lead: string): number | null {
+    const relevant = analyzedAll.filter(
+      (m) => m.meetingLead === lead || m.meetingLead === "Both"
+    );
+    if (!relevant.length) return null;
+    const scores = relevant.map((m) => m.meetingScore!).filter((s) => typeof s === "number");
+    return scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null;
+  }
+  const gabrielAvgScore = avgScoreFor("Gabriel");
+  const miguelAvgScore = avgScoreFor("Miguel");
+
+  // Customer calls this week
+  const customerCallsThisWeek = meetingsThisWeek.filter(
+    (m) => m.category === "Customer Call" || m.category === "Presentation"
+  ).length;
+
+  // Offer stats (this month)
+  const wonOffersThisMonth = allOffers.filter(
+    (o) => o.status === "Closed Won" && isInRange(o.datePresented, month)
+  ).length;
+  const activeOffers = allOffers.filter(
+    (o) => o.status === "Presented" || o.status === "Accepted"
+  ).length;
+
+  // Funnel counts (all meetings with a funnel stage)
+  const funnelCounts = Object.fromEntries(
+    FUNNEL_STAGES.map((s) => [s, 0])
+  ) as Record<FunnelStage, number>;
+  for (const m of all) {
+    if (m.funnelStage) funnelCounts[m.funnelStage] = (funnelCounts[m.funnelStage] ?? 0) + 1;
+  }
+
   // Monthly trends
   const inMonth = all.filter((m) => isInRange(m.date, month));
   const objections = Object.fromEntries(
@@ -322,8 +374,14 @@ export async function fetchDashboardData(): Promise<DashboardData> {
       analyzed: analyzedThisWeek.length,
       pending: pending.length,
       avgScore,
+      gabrielAvgScore,
+      miguelAvgScore,
+      customerCallsThisWeek,
+      wonOffersThisMonth,
+      activeOffers,
     },
     monthlyTrends: { objections, buyingSignals },
     reviewQueueCount,
+    funnelCounts,
   };
 }
