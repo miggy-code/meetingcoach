@@ -1,6 +1,7 @@
 // ─────────────────────────────────────────────────────────────
 // Server-side data-fetching helpers.
 // All functions return domain types (lib/types.ts), not raw Airtable shapes.
+// All reads target ThrottlInternal (AIRTABLE_INTERNAL_BASE_ID).
 // ─────────────────────────────────────────────────────────────
 
 import "server-only";
@@ -26,6 +27,10 @@ import {
   type GoalStatus,
   type Priority,
   type ProjectStatus,
+  type MeetingType,
+  type FunnelStage,
+  type MeetingOutcome,
+  type LossReason,
   OBJECTION_TYPES,
   BUYING_SIGNAL_TYPES,
 } from "./constants";
@@ -58,6 +63,17 @@ interface MeetingNotesFields {
   Assignee?: AirtableCollaborator;
   Status?: string;
   Attachments?: AirtableAttachment[];
+  // ─── Sales / pipeline fields ──
+  "Meeting Type"?: MeetingType;
+  "Funnel Stage"?: FunnelStage;
+  "Offer Pitched"?: string;
+  Outcome?: MeetingOutcome;
+  "Loss Reason"?: LossReason;
+  "Biggest Opportunity"?: string;
+  "Biggest Risk"?: string;
+  // ─── AI-enriched fields ──
+  "Per-Speaker Stats"?: string;
+  "Key Moments"?: string;
 }
 
 interface GoalFields {
@@ -110,6 +126,17 @@ function normalizeMeeting(r: AirtableRecord<MeetingNotesFields>): MeetingNote {
     assignee: f.Assignee ?? null,
     status: f.Status ?? null,
     attachments: f.Attachments ?? [],
+    // ─── Sales / pipeline fields ──
+    meetingType: f["Meeting Type"] ?? null,
+    funnelStage: f["Funnel Stage"] ?? null,
+    offerPitched: f["Offer Pitched"] ?? null,
+    outcome: f.Outcome ?? null,
+    lossReason: f["Loss Reason"] ?? null,
+    biggestOpportunity: f["Biggest Opportunity"] ?? null,
+    biggestRisk: f["Biggest Risk"] ?? null,
+    // ─── AI-enriched fields ──
+    perSpeakerStats: f["Per-Speaker Stats"] ?? null,
+    keyMoments: f["Key Moments"] ?? null,
   };
 }
 

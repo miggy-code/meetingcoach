@@ -66,6 +66,46 @@ export const PROJECT_STATUSES = [
 ] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
+// ─── Sales / pipeline enums ──
+
+export const MEETING_TYPES = [
+  "Discovery",
+  "Workshop Pitch",
+  "Integration Pitch",
+  "Workshop Delivery",
+  "Check-in",
+  "Internal",
+] as const;
+export type MeetingType = (typeof MEETING_TYPES)[number];
+
+export const FUNNEL_STAGES = [
+  "Prospect",
+  "Discovery",
+  "Proposal",
+  "Negotiation",
+  "Closed Won",
+  "Closed Lost",
+] as const;
+export type FunnelStage = (typeof FUNNEL_STAGES)[number];
+
+export const MEETING_OUTCOMES = [
+  "Positive",
+  "Neutral",
+  "Negative",
+  "No Show",
+] as const;
+export type MeetingOutcome = (typeof MEETING_OUTCOMES)[number];
+
+export const LOSS_REASONS = [
+  "Price",
+  "Timing",
+  "Competition",
+  "No Budget",
+  "Not a Fit",
+  "Went Dark",
+] as const;
+export type LossReason = (typeof LOSS_REASONS)[number];
+
 // ─── Categories that hide signals/objections (per spec) ──
 export const SIGNAL_HIDDEN_CATEGORIES: Category[] = [
   "Planning",

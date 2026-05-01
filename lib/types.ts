@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────
 // TypeScript types mirroring the Airtable schema.
-// Verified 2026-04-28 against base appfS9ODVKZ2XEATW.
+// Verified 2026-04-30 against ThrottlInternal base appZBVnpJImiNvIHM.
 // ─────────────────────────────────────────────────────────────
 
 import type {
@@ -13,6 +13,10 @@ import type {
   Priority,
   ProjectStatus,
   ScoreComponentKey,
+  MeetingType,
+  FunnelStage,
+  MeetingOutcome,
+  LossReason,
 } from "./constants";
 
 // ─── Airtable raw shapes (after our normalization layer) ──
@@ -88,6 +92,17 @@ export interface MeetingNote {
   assignee: AirtableCollaborator | null;
   status: string | null; // existing Todo/In progress/Done
   attachments: AirtableAttachment[];
+  // ─── Sales / pipeline fields ──
+  meetingType: MeetingType | null;
+  funnelStage: FunnelStage | null;
+  offerPitched: string | null;
+  outcome: MeetingOutcome | null;
+  lossReason: LossReason | null;
+  biggestOpportunity: string | null;
+  biggestRisk: string | null;
+  // ─── AI-enriched fields ──
+  perSpeakerStats: string | null; // JSON string — parsed downstream if needed
+  keyMoments: string | null;      // JSON string — parsed downstream if needed
 }
 
 // ─── Goal record ──

@@ -51,10 +51,11 @@ Required keys:
 | Variable | Where to get it |
 |---|---|
 | `AIRTABLE_API_KEY` | https://airtable.com/create/tokens — needs `data.records:read`, `data.records:write`, `schema.bases:read` |
-| `AIRTABLE_BASE_ID` | Already set: `appfS9ODVKZ2XEATW` (ThrottlInternal). Change if you fork. |
-| `AIRTABLE_TABLE_MEETING_NOTES` | Pre-filled: `tbluVFyMX5uocgfJ6` |
-| `AIRTABLE_TABLE_GOALS_TRACKER` | Pre-filled: `tblPrGNhmdui0U8xt` |
-| `AIRTABLE_TABLE_PROJECTS` | Pre-filled: `tblFuc49lUWQOLkfm` |
+| `AIRTABLE_BASE_ID` | ThrottlGTM base ID: `appfS9ODVKZ2XEATW` (outreach tables — kept for future GTM routes) |
+| `AIRTABLE_INTERNAL_BASE_ID` | ThrottlInternal base ID: `appZBVnpJImiNvIHM` (Meeting Notes, Goals Tracker, Projects) |
+| `AIRTABLE_TABLE_MEETING_NOTES` | ThrottlInternal Meeting Notes table ID: `tblLARyeD0D9Upk7r` |
+| `AIRTABLE_TABLE_GOALS_TRACKER` | ThrottlInternal Goals Tracker table ID: `tbl8X41pydHiwRMfh` |
+| `AIRTABLE_TABLE_PROJECTS` | ThrottlInternal Projects table ID: `tbl3kMc5aOkr4Fxjr` |
 | `DEEPSEEK_API_KEY` | https://platform.deepseek.com/api_keys |
 | `DEEPSEEK_BASE_URL` | `https://api.deepseek.com` (default) |
 | `DEEPSEEK_MODEL` | `deepseek-chat` (default; `deepseek-reasoner` for harder cases) |
@@ -77,6 +78,17 @@ Then set the same env vars in your Vercel project settings (Settings → Environ
 
 The serverless functions for `/api/analyze` and `/api/email` need at least 60s execution time — Vercel Pro is recommended for production. The Hobby tier limits to 10s which may be tight for long transcripts.
 
+## Airtable Base Architecture
+
+This app uses a **two-base split** to enforce a clean boundary between outreach and internal operations:
+
+| Base | ID | Purpose |
+|---|---|---|
+| **ThrottlGTM** | `appfS9ODVKZ2XEATW` | Outreach engine: Leads, Active Outreach, Re-engagement Archive, Companies |
+| **ThrottlInternal** | `appZBVnpJImiNvIHM` | Operations engine: Meeting Notes, Goals Tracker, Projects |
+
+The Meeting Intelligence dashboard reads exclusively from **ThrottlInternal**. The GTM base ID is retained in env vars for future GTM-facing routes.
+
 ## Architecture
 
 ```
@@ -98,7 +110,7 @@ components/
 └── ui/                               Primitives (Badges, ProgressBar, Collapsible)
 
 lib/
-├── airtable.ts                       Server-only REST client (list/get/update/create)
+├── airtable.ts                       Server-only REST client (list/get/update/create, dual-base aware)
 ├── deepseek.ts                       DeepSeek client + Zod schema for AI output + prompts
 ├── queries.ts                        Read helpers, returns domain types
 ├── mutations.ts                      Write helpers (analysis apply, corrections, promotion)
@@ -109,13 +121,13 @@ lib/
 
 ## Airtable schema
 
-This project assumes the following schema in `appfS9ODVKZ2XEATW`. If you fork to a different base, run the migration steps documented in the working doc.
+This project uses tables in `appZBVnpJImiNvIHM` (ThrottlInternal).
 
-**`Meeting Notes`** — Name, Transcript, Date, Category, Post-Mortem Status, Analysis Confidence, Summary, Next Steps (JSON), Improvement Areas, Follow-up Email, Attendees, Speaker Map (JSON), Objections, Buying Signals, Meeting Score, Score Breakdown (JSON), Duration, Last Analyzed At, Human Corrections (JSON), Related Goals → Goals Tracker, Related Project → Projects, plus the original Assignee/Status/Attachments/Attachment Summary.
+**`Meeting Notes`** (`tblLARyeD0D9Upk7r`) — Name, Transcript, Date, Category, Post-Mortem Status, Analysis Confidence, Summary, Next Steps (JSON), Improvement Areas, Follow-up Email, Attendees, Speaker Map (JSON), Objections, Buying Signals, Meeting Score, Score Breakdown (JSON), Duration, Last Analyzed At, Human Corrections (JSON), Related Goals → Goals Tracker, Related Project → Projects, Meeting Type, Funnel Stage, Offer Pitched, Outcome, Loss Reason, Biggest Opportunity, Biggest Risk, Per-Speaker Stats, Key Moments, plus the original Assignee/Status/Attachments.
 
-**`Goals Tracker`** — Goal name, Status, Priority, Owner, Source Meeting → Meeting Notes, Confidence, Notes, Due Date.
+**`Goals Tracker`** (`tbl8X41pydHiwRMfh`) — Goal name, Status, Priority, Owner, Source Meeting → Meeting Notes, Confidence, Notes, Due Date.
 
-**`Projects`** — Project name, Status, Priority, Owner, Related Meetings → Meeting Notes, Notes.
+**`Projects`** (`tbl3kMc5aOkr4Fxjr`) — Project name, Status, Priority, Owner, Related Meetings → Meeting Notes, Notes.
 
 ## How analysis works
 

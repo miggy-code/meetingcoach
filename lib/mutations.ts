@@ -2,6 +2,7 @@
 // Server-side write helpers.
 // Wrappers around lib/airtable.ts that serialize JSON fields and
 // build link arrays correctly.
+// All writes target ThrottlInternal (AIRTABLE_INTERNAL_BASE_ID).
 // ─────────────────────────────────────────────────────────────
 
 import "server-only";

@@ -2,6 +2,10 @@
 // Server-only Airtable client.
 // Direct REST calls — small surface, no SDK needed.
 // NEVER import this from a client component.
+//
+// Base split (2026-04-30):
+//   AIRTABLE_BASE_ID          → ThrottlGTM  (outreach tables — legacy, kept for compatibility)
+//   AIRTABLE_INTERNAL_BASE_ID → ThrottlInternal (Meeting Notes, Goals Tracker, Projects)
 // ─────────────────────────────────────────────────────────────
 
 import "server-only";
@@ -14,13 +18,29 @@ function env(name: string): string {
   return v;
 }
 
+// ─── Base ID helpers ──
+
+/** ThrottlGTM base — outreach/lead tables (kept for future GTM routes). */
+export const gtmBaseId = () => env("AIRTABLE_BASE_ID");
+
+/** ThrottlInternal base — Meeting Notes, Goals Tracker, Projects. */
+export const internalBaseId = () => env("AIRTABLE_INTERNAL_BASE_ID");
+
+/**
+ * @deprecated Use `internalBaseId()` or `gtmBaseId()` directly.
+ * Kept as an alias for `internalBaseId()` so any legacy callers don't break.
+ */
+export const baseId = internalBaseId;
+
+// ─── Table ID helpers ──
+
 export const tables = {
   meetingNotes: () => env("AIRTABLE_TABLE_MEETING_NOTES"),
   goalsTracker: () => env("AIRTABLE_TABLE_GOALS_TRACKER"),
   projects: () => env("AIRTABLE_TABLE_PROJECTS"),
 };
 
-export const baseId = () => env("AIRTABLE_BASE_ID");
+// ─── Airtable types ──
 
 interface AirtableListResponse<T> {
   records: AirtableRecord<T>[];
@@ -42,11 +62,14 @@ interface ListOptions {
   view?: string;
 }
 
+// ─── Core request helper ──
+
 async function airtableRequest<T>(
+  baseIdValue: string,
   path: string,
   init: RequestInit & { revalidate?: number | false } = {},
 ): Promise<T> {
-  const url = `${API_BASE}/${baseId()}${path}`;
+  const url = `${API_BASE}/${baseIdValue}${path}`;
   const { revalidate = 60, ...rest } = init;
   const cacheOpts: RequestInit =
     revalidate === false
@@ -75,8 +98,9 @@ async function airtableRequest<T>(
 export async function listRecords<T>(
   tableId: string,
   options: ListOptions = {},
-  opts: { revalidate?: number | false } = {},
+  opts: { revalidate?: number | false; baseId?: string } = {},
 ): Promise<AirtableRecord<T>[]> {
+  const base = opts.baseId ?? internalBaseId();
   const all: AirtableRecord<T>[] = [];
   let offset: string | undefined;
   do {
@@ -93,6 +117,7 @@ export async function listRecords<T>(
     options.fields?.forEach((f) => params.append("fields[]", f));
 
     const data = await airtableRequest<AirtableListResponse<T>>(
+      base,
       `/${tableId}?${params.toString()}`,
       opts,
     );
@@ -108,9 +133,11 @@ export async function listRecords<T>(
 export async function getRecord<T>(
   tableId: string,
   recordId: string,
-  opts: { revalidate?: number | false } = { revalidate: false },
+  opts: { revalidate?: number | false; baseId?: string } = { revalidate: false },
 ): Promise<AirtableRecord<T>> {
+  const base = opts.baseId ?? internalBaseId();
   return airtableRequest<AirtableRecord<T>>(
+    base,
     `/${tableId}/${recordId}`,
     opts,
   );
@@ -122,8 +149,10 @@ export async function updateRecord<T>(
   tableId: string,
   recordId: string,
   fields: Partial<T>,
+  opts: { baseId?: string } = {},
 ): Promise<AirtableRecord<T>> {
-  return airtableRequest<AirtableRecord<T>>(`/${tableId}/${recordId}`, {
+  const base = opts.baseId ?? internalBaseId();
+  return airtableRequest<AirtableRecord<T>>(base, `/${tableId}/${recordId}`, {
     method: "PATCH",
     body: JSON.stringify({ fields }),
     revalidate: false,
@@ -135,8 +164,10 @@ export async function updateRecord<T>(
 export async function createRecord<T>(
   tableId: string,
   fields: Partial<T>,
+  opts: { baseId?: string } = {},
 ): Promise<AirtableRecord<T>> {
-  return airtableRequest<AirtableRecord<T>>(`/${tableId}`, {
+  const base = opts.baseId ?? internalBaseId();
+  return airtableRequest<AirtableRecord<T>>(base, `/${tableId}`, {
     method: "POST",
     body: JSON.stringify({ fields }),
     revalidate: false,
@@ -148,8 +179,11 @@ export async function createRecord<T>(
 export async function createRecords<T>(
   tableId: string,
   records: { fields: Partial<T> }[],
+  opts: { baseId?: string } = {},
 ): Promise<AirtableRecord<T>[]> {
+  const base = opts.baseId ?? internalBaseId();
   const data = await airtableRequest<{ records: AirtableRecord<T>[] }>(
+    base,
     `/${tableId}`,
     {
       method: "POST",
